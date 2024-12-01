@@ -4,9 +4,9 @@ go 1.23
 
 toolchain go1.23.2
 
-require github.com/zopego/panelbubble v0.0.0-latest
+require github.com/zopego/panelbubble v0.0.1
 
-replace github.com/zopego/panelbubble => ../panelbubble
+//replace github.com/zopego/panelbubble => ../panelbubble
 
 require (
 	github.com/IBM/fp-go v1.0.151
