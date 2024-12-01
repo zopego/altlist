@@ -8,8 +8,8 @@ import (
 )
 
 type SearchOption struct {
-	caseSensitive   bool
-	showMatchesOnly bool
+	CaseSensitive bool
+	MatchesOnly   bool // if true, only items with matches are returned
 }
 
 // DefaultFilter uses the sahilm/fuzzy to filter through the list.
@@ -43,7 +43,7 @@ func AltFilter(term string, targets []string) []list.Rank {
 
 func MakeSearchFunc(option SearchOption) func(term string, targets []string) []list.Rank {
 	return func(term string, targets []string) []list.Rank {
-		if !option.caseSensitive {
+		if !option.CaseSensitive {
 			term = strings.ToLower(term)
 		}
 		terms := strings.Split(term, " ")
@@ -63,7 +63,7 @@ func MakeSearchFunc(option SearchOption) func(term string, targets []string) []l
 					rank.MatchedIndexes = append(rank.MatchedIndexes, newMatchIndixes...)
 				}
 			}
-			if len(rank.MatchedIndexes) > 0 || !option.showMatchesOnly {
+			if len(rank.MatchedIndexes) > 0 || !option.MatchesOnly {
 				ranks = append(ranks, rank)
 			}
 		}
