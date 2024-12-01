@@ -10,8 +10,10 @@ import (
 )
 
 type SearchOption struct {
-	CaseSensitive bool
-	MatchesOnly   bool // if true, only items with matches are returned
+	CaseSensitive    bool
+	MatchesOnly      bool // if true, only items with matches are returned
+	SortByMatchCount bool // if true, ranks are sorted by match count
+	ReverseSort      bool // if true, ranks are sorted in descending order
 }
 
 // DefaultFilter uses the sahilm/fuzzy to filter through the list.
@@ -70,9 +72,15 @@ func MakeSearchFunc(option SearchOption) func(term string, targets []string) []l
 			}
 		}
 
-		slices.SortStableFunc(ranks, func(i, j list.Rank) int {
-			return len(i.MatchedIndexes) - len(j.MatchedIndexes)
-		})
+		if option.SortByMatchCount {
+			slices.SortStableFunc(ranks, func(i, j list.Rank) int {
+				if option.ReverseSort {
+					return len(j.MatchedIndexes) - len(i.MatchedIndexes)
+				}
+				return len(i.MatchedIndexes) - len(j.MatchedIndexes)
+			})
+		}
+
 		return ranks
 	}
 }
