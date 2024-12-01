@@ -314,7 +314,7 @@ func NewSearchList[T list.DefaultItem](items []T, config SearchListConfig, d lis
 	l := list.New(ditems, d, config.Width, config.Height)
 	l.SetShowFilter(false)
 	l.SetShowTitle(false)
-	l.Filter = MakeSearchFunc(SearchOption{showMatchesOnly: false, caseSensitive: false})
+	l.Filter = MakeSearchFunc(SearchOption{MatchesOnly: false, CaseSensitive: false})
 	l.Title = "Select notebooks"
 	l.Styles.StatusBar = l.Styles.StatusBar.Padding(0, 0, 1)
 	l.Styles.TitleBar = l.Styles.TitleBar.Padding(0, 0)
