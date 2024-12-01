@@ -3,6 +3,8 @@ package altlist
 import (
 	"strings"
 
+	"slices"
+
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/sahilm/fuzzy"
 )
@@ -67,6 +69,10 @@ func MakeSearchFunc(option SearchOption) func(term string, targets []string) []l
 				ranks = append(ranks, rank)
 			}
 		}
+
+		slices.SortStableFunc(ranks, func(i, j list.Rank) int {
+			return len(i.MatchedIndexes) - len(j.MatchedIndexes)
+		})
 		return ranks
 	}
 }
