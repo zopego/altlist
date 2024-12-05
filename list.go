@@ -244,7 +244,7 @@ func setPadding(s *lipgloss.Style, p int, p2 int, p3 int, p4 int) {
 	*s = s.Padding(p, p2, p3, p4)
 }
 
-func SelectableItemsDelegate() DefaultItemDelegateAlt {
+func SelectableItemsDelegate(selectionToggleKey key.Binding, selectionChanged func(item interface{}, selected bool) tea.Cmd) DefaultItemDelegateAlt {
 	d := DefaultItemDelegateAlt{DefaultDelegate: list.NewDefaultDelegate(), itemSelected: make(map[int]bool)}
 	d.Styles = list.NewDefaultItemStyles()
 	setPadding(&d.Styles.NormalTitle, 0, 0, 0, 1)
@@ -252,12 +252,14 @@ func SelectableItemsDelegate() DefaultItemDelegateAlt {
 	setPadding(&d.Styles.DimmedTitle, 0, 0, 0, 1)
 
 	d.DefaultDelegate.UpdateFunc = func(msg tea.Msg, m *list.Model) tea.Cmd {
-		if msg, ok := msg.(tea.KeyMsg); ok && msg.String() == " " {
-			if _, ok := d.itemSelected[m.Index()]; !ok {
-				d.itemSelected[m.Index()] = true
+		if msg, ok := msg.(tea.KeyMsg); ok && key.Matches(msg, selectionToggleKey) {
+			idx := m.Index()
+			if _, ok := d.itemSelected[idx]; !ok {
+				d.itemSelected[idx] = true
 			} else {
-				d.itemSelected[m.Index()] = !d.itemSelected[m.Index()]
+				d.itemSelected[idx] = !d.itemSelected[idx]
 			}
+			return selectionChanged(m.Items()[idx], d.itemSelected[idx])
 		}
 		return teapb.MsgUsedCmd()
 	}
@@ -308,7 +310,9 @@ func (s SearchList) HandleSizeMsg(msg teapb.ResizeMsg) (tea.Model, tea.Cmd) {
 func NewSearchList[T list.DefaultItem](items []T, config SearchListConfig, d list.ItemDelegate) SearchList {
 	ditems := convertToDefaultItems(items)
 	if d == nil {
-		d = SelectableItemsDelegate()
+		d = SelectableItemsDelegate(key.NewBinding(), func(item interface{}, selected bool) tea.Cmd {
+			return nil
+		})
 	}
 
 	l := list.New(ditems, d, config.Width, config.Height)
