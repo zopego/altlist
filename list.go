@@ -7,6 +7,7 @@ import (
 
 	A "github.com/IBM/fp-go/array"
 	F "github.com/IBM/fp-go/function"
+	"github.com/charmbracelet/bubbles/cursor"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -120,6 +121,13 @@ func (s SearchList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// This is needed to pass blinking to the search input
 	if nowFiltering {
 		if msg, ok := msg.(tea.KeyMsg); ok {
+			si, cmd := s.SearchInput.Update(msg)
+			s.SearchInput = si
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		if msg, ok := msg.(cursor.BlinkMsg); ok {
 			si, cmd := s.SearchInput.Update(msg)
 			s.SearchInput = si
 			if cmd != nil {
