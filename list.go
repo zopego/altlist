@@ -83,6 +83,12 @@ func (s SearchList) GetMsgForParent() (tea.Model, tea.Msg) {
 
 func (s SearchList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds := []tea.Cmd{}
+	if _, ok := msg.(teapb.ConsiderForGlobalShortcutMsg); ok {
+		return s, nil
+	}
+	if _, ok := msg.(teapb.ConsiderForLocalShortcutMsg); ok {
+		return s, nil
+	}
 	wasFiltering := s.List.FilterState() == list.Filtering
 	wasFullHelp := s.List.Help.ShowAll
 
