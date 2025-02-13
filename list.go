@@ -8,13 +8,13 @@ import (
 	A "github.com/IBM/fp-go/array"
 	F "github.com/IBM/fp-go/function"
 	"github.com/charmbracelet/bubbles/cursor"
-	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	tcellviews "github.com/gdamore/tcell/v2/views"
 	teapb "github.com/zopego/panelbubble"
 )
 
@@ -26,35 +26,38 @@ const (
 )
 
 type SearchList struct {
-	List         list.Model
-	SearchInput  textinput.Model
-	msgForParent tea.Msg
+	List             list.Model
+	SearchInput      textinput.Model
+	MarkKeyMsgUnused func(msg *teapb.KeyMsg)
+	redraw           bool
+	view             *tcellviews.ViewPort
 }
 
 // type assertions
-//var _ CanSendMsgToParent = &SearchList{}
-//var _ HandlesRecvFocus = &SearchList{}
-//var _ tea.Model = &SearchList{}
+var _ teapb.ILeafModel = &SearchList{}
+var _ teapb.ILeafModelWithView = &SearchList{}
 
-func (s SearchList) Init() tea.Cmd {
+func (s *SearchList) Init(MarkKeyMsgUnused func(msg *teapb.KeyMsg)) tea.Cmd {
+	s.MarkKeyMsgUnused = MarkKeyMsgUnused
 	return func() tea.Msg {
 		return textinput.Blink()
 	}
 }
 
 // Example implementation of HandlesRecvFocus & HandlesRecvFocusRevoke
-/*
-func (s SearchList) HandleRecvFocus() (tea.Model, tea.Cmd) {
+
+func (s SearchList) HandleRecvFocus() {
 	s.List.SetShowHelp(true)
-	return s, nil
+	s.redraw = true
 }
 
-func (s SearchList) HandleRecvFocusRevoke() (tea.Model, tea.Cmd) {
+func (s SearchList) HandleRecvFocusRevoke() {
 	s.List.SetShowHelp(false)
-	return s, nil
-} */
+	s.redraw = true
+}
 
-func (s SearchList) HandleRecvFocus() (tea.Model, tea.Cmd) {
+/*
+func (s *SearchList) HandleRecvFocus() (tea.Model, tea.Cmd) {
 	return s, func() tea.Msg {
 		h := help.New()
 		h.ShowAll = true
@@ -70,25 +73,63 @@ func (s SearchList) HandleRecvFocus() (tea.Model, tea.Cmd) {
 		return teapb.ContextualHelpTextMsg{Text: h.ShortHelpView(shortlist)}
 	}
 }
+*/
 
-func (s *SearchList) SetMsgForParent(msg tea.Msg) {
-	s.msgForParent = msg
+/*
+func (s *SearchList) Draw(force bool) bool {
+	if s.view == nil {
+		teapb.DebugPrintf("SearchList has no view")
+		return false
+	}
+	if s.redraw || force {
+		panelbubble.TcellDrawHelper(s.View(), s.view)
+		s.redraw = false
+		return true
+	}
+	return false
 }
 
-func (s SearchList) GetMsgForParent() (tea.Model, tea.Msg) {
-	msg := s.msgForParent
-	s.msgForParent = nil
-	return s, msg
+func (s *SearchList) SetView(view *tcellviews.ViewPort) {
+	s.view = view
+} */
+
+func (s *SearchList) NeedsRedraw() bool {
+	return true
 }
 
-func (s SearchList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (s *SearchList) Update(msg teapb.Msg) tea.Cmd {
+	if _, ok := msg.(teapb.FocusGrantMsg); ok {
+		s.HandleRecvFocus()
+		return nil
+	}
+	if msg, ok := msg.(teapb.ResizeMsg); ok {
+		s.HandleSizeMsg(msg)
+		return nil
+	}
+
+	if _, ok := msg.(teapb.FocusRevokeMsg); ok {
+		s.HandleRecvFocusRevoke()
+		return nil
+	}
+
+	var keyMsg tea.KeyMsg
+	if msg, ok := msg.(teapb.KeyMsg); ok {
+		keyMsg, ok = teapb.MapKeyMsg(msg)
+		if !ok {
+			teapb.DebugPrintf("SearchList received KeyMsg that was not mapped: %T %+v\n", msg, msg)
+			return nil
+		}
+		return s.UpdateTeaMsg(keyMsg, func() {
+			s.MarkKeyMsgUnused(&msg)
+		})
+	}
+
+	return s.UpdateTeaMsg(msg, func() {})
+}
+
+func (s *SearchList) UpdateTeaMsg(msg tea.Msg, markMsgUnused func()) tea.Cmd {
 	cmds := []tea.Cmd{}
-	if _, ok := msg.(teapb.ConsiderForGlobalShortcutMsg); ok {
-		return s, nil
-	}
-	if _, ok := msg.(teapb.ConsiderForLocalShortcutMsg); ok {
-		return s, nil
-	}
+
 	wasFiltering := s.List.FilterState() == list.Filtering
 	wasFullHelp := s.List.Help.ShowAll
 
@@ -126,7 +167,8 @@ func (s SearchList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// This is needed to pass blinking to the search input
 	if nowFiltering {
-		if msg, ok := msg.(tea.KeyMsg); ok {
+		if _, ok := msg.(teapb.KeyMsg); ok {
+			s.redraw = true
 			si, cmd := s.SearchInput.Update(msg)
 			s.SearchInput = si
 			if cmd != nil {
@@ -134,6 +176,7 @@ func (s SearchList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		if msg, ok := msg.(cursor.BlinkMsg); ok {
+			s.redraw = true
 			si, cmd := s.SearchInput.Update(msg)
 			s.SearchInput = si
 			if cmd != nil {
@@ -142,17 +185,17 @@ func (s SearchList) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	if msg, ok := msg.(tea.KeyMsg); ok {
+	if _, ok := msg.(tea.KeyMsg); ok {
 		if !nowFiltering && !stateChanged {
-			s.SetMsgForParent(msg)
+			markMsgUnused()
 		}
 	}
 
 	if len(cmds) > 0 {
-		return s, tea.Batch(cmds...)
+		return tea.Batch(cmds...)
 	}
 
-	return s, nil
+	return nil
 }
 
 func (s SearchList) View() string {
@@ -275,7 +318,7 @@ func SelectableItemsDelegate(selectionToggleKey key.Binding, selectionChanged fu
 			}
 			return selectionChanged(m.Items()[idx], d.itemSelected[idx])
 		}
-		return teapb.MsgUsedCmd()
+		return nil
 	}
 	return d
 }
@@ -314,11 +357,10 @@ func KeyUsedByList(k list.KeyMap, msg tea.Msg) bool {
 	return false
 }
 
-func (s SearchList) HandleSizeMsg(msg teapb.ResizeMsg) (tea.Model, tea.Cmd) {
+func (s *SearchList) HandleSizeMsg(msg teapb.ResizeMsg) {
 	teapb.DebugPrintf("SearchList received size message: %+v\n", msg)
 	s.List.SetWidth(msg.Width)
 	s.List.SetHeight(msg.Height - 1) //1 for the search input
-	return s, nil
 }
 
 func NewSearchList[T list.DefaultItem](items []T, config SearchListConfig, d list.ItemDelegate) SearchList {
